@@ -34,9 +34,18 @@
 #define LIPO_ADCCHANNELS                        3
 
 /**
- * @brief The scale factors to mV for each cell.
+ * @brief The scale factors to mV for each cell based on the used resistors.
  * 
- * See lipo.hpp for mor infos on how this values are calculated.
+ * Those values are calculated baed on the infos in lipo.hpp for the
+ * following resistor network:
+ * 
+ * | Cell | R1 | R2 |
+ * +------+----+----+
+ * | 0    | 10 | 33 |
+ * | 1    | 33 | 18 |
+ * | 2    | 33 | 10 |
+ * 
+ * Resistor values in kOhm, LIPO_DENOMINATOR = 11
  */
 #define LIPO_PARAMS                             \
 {                                               \
