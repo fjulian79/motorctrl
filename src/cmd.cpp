@@ -47,9 +47,12 @@ int8_t cmd_ver(char *argv[], uint8_t argc)
 int8_t cmd_help(char *argv[], uint8_t argc)
 {
     Serial.printf("Supported commands:\n");
-    Serial.printf("  set            TBD\n");
-    Serial.printf("  rpm            TBD\n");
-    Serial.printf("  bat            TBD\n");
+    Serial.printf("  mot n pwm      Sets the pwm of a given motor.\n");
+    Serial.printf("                 n    The motor number (0..%d)\n", MOTOR_COUNT-1);
+    Serial.printf("                 pwm  The pwm value \n");
+    Serial.printf("  stop           Stops all motors at once.\n");
+    Serial.printf("  beep           Used to test the buzzer class.\n");
+    Serial.printf("  bat            Prints battery infos.\n");
     Serial.printf("  temp           Reads the temperature.\n");
     Serial.printf("  cal cell mV    Calibrate the given cell.\n");
     Serial.printf("  param\n");
