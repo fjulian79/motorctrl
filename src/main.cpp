@@ -89,7 +89,8 @@ CLI_COMMAND(reset)
 {
     Serial.printf("Resetting the CPU ...\n");
     delay(100);
-
+    NVIC_SystemReset();
+    
     return 0;
 }
 
@@ -108,7 +109,7 @@ void setup()
     uint32_t pinmot_a[MOTOR_NUM] =   {PA11, PC12, PB13, PB14};
     uint32_t pinmot_b[MOTOR_NUM] =   {PA8,  PA12, PB12, PB15};
     uint32_t pinmot_pwm[MOTOR_NUM] = {PC8,  PC9,  PC6,  PC7};
-    
+
     //WARNING: Only motor 0, 1 have valid encoder pins defined
     uint32_t pinenc_clk[MOTOR_NUM] = {PC14, PC2,  PC2,  PC2}; 
     uint32_t pinenc_dir[MOTOR_NUM] = {PC15, PC3,  PC3,  PC3};
