@@ -15,7 +15,6 @@ Motor::Motor() :
     /* Nothing to do */
 }
 
-
 void Motor::init(uint32_t pinmot_a, uint32_t pinmot_b, uint32_t pinmot_pwm, uint32_t pinenc_clk, uint32_t pinenc_dir, uint32_t pwm_hz)
 {
     PinMot_A = pinmot_a;
@@ -28,12 +27,27 @@ void Motor::init(uint32_t pinmot_a, uint32_t pinmot_b, uint32_t pinmot_pwm, uint
     pinMode(PinMot_B, OUTPUT);
     pinMode(PinMot_Pwm, OUTPUT);
 
-    pinMode(PinEnc_Clk, INPUT);
-    pinMode(PinEnc_Dir, INPUT);
-
     analogWrite(PinMot_Pwm, 0);
     analogWriteFrequency(pwm_hz);
     analogWriteResolution(MOTOR_PWM_BITS);
+}
+
+void Motor::attachEncoderIsr(callback_function_t callback)
+{
+    pinMode(PinEnc_Clk, INPUT);
+    pinMode(PinEnc_Dir, INPUT);
+
+    Enc_Pos = 0;
+    
+    attachInterrupt(digitalPinToInterrupt(PinEnc_Clk), callback, RISING);
+}
+
+void Motor::procEncoder(void)
+{
+    if(digitalRead(PinEnc_Dir))
+        Enc_Pos++;
+    else
+        Enc_Pos--;
 }
 
 void Motor::set(float percent)
@@ -78,4 +92,9 @@ void Motor::ebreak(uint32_t val)
     digitalWrite(PinMot_A, HIGH);
     digitalWrite(PinMot_B, HIGH);
     analogWrite(PinMot_Pwm, val);
+}
+
+int32_t Motor::getPosition(void)
+{
+    return Enc_Pos;
 }

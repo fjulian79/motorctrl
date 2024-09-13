@@ -41,6 +41,26 @@ Task ledTask(250);
 Task serialTask(10);
 Motor motor[MOTOR_NUM];
 
+void encoder0ISR(void)
+{
+    motor[0].procEncoder();
+}
+
+void encoder1ISR(void)
+{
+    motor[1].procEncoder();
+}
+
+void encoder2ISR(void)
+{
+    motor[2].procEncoder();
+}
+
+void encoder3ISR(void)
+{
+    motor[3].procEncoder();
+}
+
 CLI_COMMAND(ver)
 {
     Serial.printf("\n%s %s, Copyright (C) 2024 Julian Friedrich\n", 
@@ -77,11 +97,21 @@ CLI_COMMAND(m)
 
 CLI_COMMAND(s)
 {
-    motor[0].stop();
-    motor[1].stop();
-    motor[2].stop();
-    motor[3].stop();
+    for (uint32_t i = 0; i < MOTOR_NUM; i++)
+        motor[i].stop();
 
+    return 0;
+}
+
+CLI_COMMAND(i)
+{
+    int32_t pos[MOTOR_NUM];
+
+    for (uint32_t i = 0; i < MOTOR_NUM; i++)
+        pos[i] = motor[i].getPosition();
+
+    Serial.printf("%4ld %4ld %4ld %4ld\n", pos[0], pos[1], pos[2], pos[3]);
+    
     return 0;
 }
 
@@ -90,7 +120,7 @@ CLI_COMMAND(reset)
     Serial.printf("Resetting the CPU ...\n");
     delay(100);
     NVIC_SystemReset();
-    
+
     return 0;
 }
 
@@ -111,12 +141,14 @@ void setup()
     uint32_t pinmot_pwm[MOTOR_NUM] = {PC8,  PC9,  PC6,  PC7};
 
     //WARNING: Only motor 0, 1 have valid encoder pins defined
-    uint32_t pinenc_clk[MOTOR_NUM] = {PC14, PC2,  PC2,  PC2}; 
-    uint32_t pinenc_dir[MOTOR_NUM] = {PC15, PC3,  PC3,  PC3};
+    uint32_t pinenc_clk[MOTOR_NUM] = {PC14, PC2,  PA15,  PA15}; 
+    uint32_t pinenc_dir[MOTOR_NUM] = {PC15, PC3,  PA15,  PA15};
+    callback_function_t cbenc[MOTOR_NUM] = {encoder0ISR, encoder1ISR, encoder2ISR, encoder3ISR};
 
     for (uint8_t i=0; i<MOTOR_NUM; i++)
     {
         motor[i].init(pinmot_a[i], pinmot_b[i], pinmot_pwm[i], pinenc_clk[i], pinenc_dir[i]);
+        motor[i].attachEncoderIsr(cbenc[i]);
     }
     
     pinMode(LED_BUILTIN, OUTPUT);
