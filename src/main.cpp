@@ -25,13 +25,21 @@
 #include <generic/task.hpp>
 
 #include "version/version.h"
+#include "motor.hpp"
 
 #include <stdio.h>
 #include <stdint.h>
 
+#define BUZZER_PIN              PB8
+#define DEBUG_A                 PC10
+#define DEBUG_B                 PC11
+
+#define MOTOR_NUM               4
+
 Cli cli;
 Task ledTask(250);
 Task serialTask(10);
+Motor motor[MOTOR_NUM];
 
 CLI_COMMAND(ver)
 {
@@ -48,11 +56,40 @@ CLI_COMMAND(ver)
     return 0;
 }
 
+CLI_COMMAND(m)
+{
+    if(argc == 2)
+    {
+        uint8_t idx = strtoul(argv[0], 0, 0);
+        float val = atoff(argv[1]);
+        
+        Serial.printf("Motor %d set to ", idx);
+        Serial.print(val);
+        Serial.print("\n");
+
+        motor[idx].set(val);
+
+        return 0;
+    }
+
+    return -1;
+}
+
+CLI_COMMAND(s)
+{
+    motor[0].stop();
+    motor[1].stop();
+    motor[2].stop();
+    motor[3].stop();
+
+    return 0;
+}
+
 CLI_COMMAND(reset)
 {
     Serial.printf("Resetting the CPU ...\n");
     delay(100);
-  
+
     return 0;
 }
 
@@ -68,6 +105,19 @@ CLI_COMMAND(help)
 
 void setup()
 {
+    uint32_t pinmot_a[MOTOR_NUM] =   {PA11, PC12, PB13, PB14};
+    uint32_t pinmot_b[MOTOR_NUM] =   {PA8,  PA12, PB12, PB15};
+    uint32_t pinmot_pwm[MOTOR_NUM] = {PC8,  PC9,  PC6,  PC7};
+    
+    //WARNING: Only motor 0, 1 have valid encoder pins defined
+    uint32_t pinenc_clk[MOTOR_NUM] = {PC14, PC2,  PC2,  PC2}; 
+    uint32_t pinenc_dir[MOTOR_NUM] = {PC15, PC3,  PC3,  PC3};
+
+    for (uint8_t i=0; i<MOTOR_NUM; i++)
+    {
+        motor[i].init(pinmot_a[i], pinmot_b[i], pinmot_pwm[i], pinenc_clk[i], pinenc_dir[i]);
+    }
+    
     pinMode(LED_BUILTIN, OUTPUT);
 
     Serial.begin(115200);
