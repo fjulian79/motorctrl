@@ -31,34 +31,31 @@
 #include <stdint.h>
 
 #define BUZZER_PIN              PB8
-#define DEBUG_A                 PC10
-#define DEBUG_B                 PC11
-
 #define MOTOR_NUM               4
 
 Cli cli;
 Task ledTask(250);
-Task serialTask(10);
 Motor motor[MOTOR_NUM];
+bool print = false;
 
 void encoder0ISR(void)
 {
-    motor[0].procEncoder();
+    motor[0].encoderIsrCallback();
 }
 
 void encoder1ISR(void)
 {
-    motor[1].procEncoder();
+    motor[1].encoderIsrCallback();
 }
 
 void encoder2ISR(void)
 {
-    motor[2].procEncoder();
+    motor[2].encoderIsrCallback();
 }
 
 void encoder3ISR(void)
 {
-    motor[3].procEncoder();
+    motor[3].encoderIsrCallback();
 }
 
 CLI_COMMAND(ver)
@@ -87,7 +84,7 @@ CLI_COMMAND(m)
         Serial.print(val);
         Serial.print("\n");
 
-        motor[idx].set(val);
+        motor[idx].pwm(val);
 
         return 0;
     }
@@ -112,6 +109,12 @@ CLI_COMMAND(i)
 
     Serial.printf("%4ld %4ld %4ld %4ld\n", pos[0], pos[1], pos[2], pos[3]);
     
+    return 0;
+}
+
+CLI_COMMAND(p)
+{
+    print = !print;
     return 0;
 }
 
@@ -148,9 +151,11 @@ void setup()
     for (uint8_t i=0; i<MOTOR_NUM; i++)
     {
         motor[i].init(pinmot_a[i], pinmot_b[i], pinmot_pwm[i], pinenc_clk[i], pinenc_dir[i]);
-        motor[i].attachEncoderIsr(cbenc[i]);
+        motor[i].initEncoder(cbenc[i]);
     }
     
+    pinMode(DEBUG_A, OUTPUT);
+    pinMode(DEBUG_B, OUTPUT);
     pinMode(LED_BUILTIN, OUTPUT);
 
     Serial.begin(115200);
@@ -170,5 +175,6 @@ void loop()
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
     }
 
+    motor[0].loop(print);
     cli.loop();
 }

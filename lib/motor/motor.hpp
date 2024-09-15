@@ -4,6 +4,9 @@
 #include <Arduino.h>
 #include <stdint.h>
 
+#define DEBUG_A                 PC10
+#define DEBUG_B                 PC11
+
 class Motor
 {
     public:
@@ -12,13 +15,13 @@ class Motor
 
         void init(uint32_t pinmot_a, uint32_t pinmot_b, uint32_t pinmot_pwm, uint32_t pinenc_clk, uint32_t pinenc_dir, uint32_t pwm_hz = 32000);
 
-        void attachEncoderIsr(callback_function_t callback);
+        void initEncoder(callback_function_t callback);
 
-        void procEncoder(void);
+        void encoderIsrCallback(void);
 
-        void set(float percent);
+        void pwm(float percent);
 
-        void set(int32_t val);
+        void pwm(int32_t val);
 
         void stop(void);
 
@@ -26,16 +29,28 @@ class Motor
 
         int32_t getPosition(void);
 
-    
+        float getSpeed();
+
+        void loop(bool debug = false);
+
     private:
 
-        uint32_t PinMot_A;
-        uint32_t PinMot_B;
-        uint32_t PinMot_Pwm;
-        uint32_t PinEnc_Clk;
-        uint32_t PinEnc_Dir;
+        struct 
+        {
+            uint32_t motA;
+            uint32_t motB;
+            uint32_t motPwm;
+            uint32_t encClk;
+            uint32_t encDir;
+        } Pin;
 
-        volatile int32_t  Enc_Pos;
+        struct
+        {
+            volatile  int32_t posistion;
+            volatile uint32_t t_lastIRQ;
+            volatile uint32_t periode;
+            volatile float speed;
+        } Encoder;
 };
 
 #endif /* DCMOT_HPP_ */
