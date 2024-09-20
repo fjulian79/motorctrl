@@ -35,15 +35,25 @@ void Motor::initEncoder(callback_function_t callback)
     attachInterrupt(digitalPinToInterrupt(Pin.encClk), callback, RISING);
 }
 
+void Motor::initPidSpeed(float kp, float ki, float kd)
+{
+    PidSpeed.init(kp, ki, kd);
+}
+
+void Motor::initPidPos(float kp, float ki, float kd)
+{
+    PidPos.init(kp, ki, kd);
+}
+
 void Motor::encoderIsrCallback(void)
 {
     uint32_t now = micros();
     uint32_t dir = digitalRead(Pin.encDir);
 
     if(dir)
-        Encoder.posistion++;
+        Encoder.position++;
     else
-        Encoder.posistion--;
+        Encoder.position--;
 
     Encoder.periode = now - Encoder.t_lastIRQ;
     Encoder.t_lastIRQ = now;
@@ -84,8 +94,25 @@ void Motor::pwm(int32_t val)
     analogWrite(Pin.motPwm, pwm);
 }
 
+void Motor::speed(float speed)
+{
+    PidSpeed.setpoint(speed);
+}
+
+void Motor::move(int32_t pos, bool rel)
+{
+
+}
+
+void Motor::resetPosition(void)
+{
+    Encoder.position = 0;
+}
+
 void Motor::stop(void)
 {
+    PidSpeed.enable(false);
+    PidPos.enable(false);
     pwm((int32_t)0);
 }
 
@@ -100,7 +127,7 @@ void Motor::ebreak(uint32_t val)
 
 int32_t Motor::getPosition(void)
 {
-    return Encoder.posistion;
+    return Encoder.position;
 }
 
 float Motor::getSpeed(void)
@@ -108,16 +135,64 @@ float Motor::getSpeed(void)
     return Encoder.speed;
 }
 
+
+float filter_butterworth(float input) 
+{
+    const float b[2] = { 0.16020035, 0.16020035 };          // 30Hz - 200
+    const float a[2] = { 1.00000000, -0.67959930 };
+    //const float b[2] = { 0.13672874, 0.13672874 };          // 25Hz - 200 
+    //const float a[2] = { 1.00000000, -0.72654253 };
+    //const float b[2] = { 0.11216024, 0.11216024 };          // 20Hz - 200
+    //const float a[2] = { 1.00000000, -0.77567951 };
+    static float prev_input = 0.0;
+    static float prev_output = 0.0;
+
+    float output = b[0] * input + b[1] * prev_input - a[1] * prev_output;
+    prev_input = input;
+    prev_output = output;
+
+    return output;
+}
+
+float filter_bessel(float input) 
+{
+    const float b[3] = {0.06745527, 0.13491055, 0.06745527};
+    const float a[3] = {1.0, -1.1429805, 0.4128016};
+    static float lastInput[2] = {0.0, 0.0};
+    static float lastOutput[2] = {0.0, 0.0};
+
+    float output = b[0] * input + b[1] * lastInput[0] + b[2] * lastInput[1] 
+            - a[1] * lastOutput[0] - a[2] * lastOutput[1];
+
+    lastInput[1] = lastInput[0];
+    lastInput[0] = input;
+    lastOutput[1] = lastOutput[0];
+    lastOutput[0] = output;
+
+    return output;
+}
+
 void Motor::loop(bool print)
 {
     static uint32_t t_last = 0;
+
+    /**
+     * ATTENTION: The Order of those two lines matter!! 
+     * Interrupts are vever disabled, so if the micos() call takes place before 
+     * evaluating the Encoder.t_lastIRQ value, a interrupt may occure inbetween.
+     * In this case the Encoder.t_lastIRQ may be bigger then the value of t_now.
+     * As result the caluclulation lead to something near UINT32_MX and this 
+     * would be handled as timeout and the speed will be set to zero.
+     */
+    uint32_t t_lastIRQ = Encoder.t_lastIRQ;
     uint32_t t_now = micros();
-
-    // Check for stopped motor
-    if (t_now - Encoder.t_lastIRQ > 60000)
+    
+    if (t_now - t_lastIRQ > 60000)
+    {
         Encoder.speed = 0;
+    }
 
-    if (t_now - t_last > 1000)
+    if (t_now - t_last > 2000)
     {
         digitalWrite(DEBUG_A, HIGH);
 
@@ -131,39 +206,122 @@ void Motor::loop(bool print)
         //t_last = t_now;
 
         //static float v2_last = 0;
-        //v3 = (2*v3+v2)/3;
+        //float v2 = Encoder.speed;
         //v3 = 0.854*v3 + 0.0728*v2 + 0.0728*v2_last;
         //v2_last = v2;
 
-        /* BESSEL */
-        // 30 - 1000
-        //float b[3] = {0.00761985,  0.0152397 ,  0.00761985};
-        //float a[3] = {1.        , -1.69028083,  0.72076023};
+        float speed = Encoder.speed;
+        //Encoder.speed_filtered = filter_butterworth(speed);
+        Encoder.speed_filtered = speed;
 
-        // 25 - 1000
-        // float b[3] = {0.06745527, 0.13491055, 0.06745527};  // Numerator coefficients
-        // float a[3] = {1.0, -1.1429805, 0.4128016};  // Denominator coefficients
-        
-        // 15 - 1000
-        //float b[3] = {0.0020518,  0.00410359,  0.0020518 };
-        //float a[3] = {1.0      , -1.84107589,  0.84928308};
-
-        //static float v_in[2] = {0.0, 0.0};  // vorherige Eingangswerte
-        //static float v_out[2] = {0.0, 0.0};  // vorherige Ausgangswerte
-        //v3 = b[0] * v2 + b[1] * v_in[0] + b[2] * v_in[1] - a[1] * v_out[0] - a[2] * v_out[1];
-        //v_in[1] = v_in[0];
-        //v_in[0] = v2;
-        //v_out[1] = v_out[0];
-        //v_out[0] = v3;
+        if(PidSpeed.isEnabled())
+        {
+            float val = PidSpeed.calc(Encoder.speed_filtered);
+            pwm(val);
+        }
 
         if(print)
         {
-            Serial.print(Encoder.posistion);
+            Serial.print(PidSpeed.getSetpoint());
             Serial.print("; ");
-            Serial.print(Encoder.speed);
+            Serial.print(speed);
+            Serial.print("; ");
+            Serial.print(Encoder.speed_filtered);
             Serial.print("\n");
         }
 
+        t_last = t_now;
+
         digitalWrite(DEBUG_A, LOW);
     }
+}
+
+template <typename T>
+PidControl<T>::PidControl()
+{
+    init(0, 0, 0);
+}
+
+template <typename T>
+void PidControl<T>::init(float kp, float ki, float kd)
+{
+    Kp = kp;
+    Ki = ki;
+    Kd = kd;
+    reset();
+}
+
+template <typename T>
+float PidControl<T>::getKp(void)
+{
+    return Kp;
+}
+
+template <typename T>
+float PidControl<T>::getKi(void)
+{
+    return Ki;
+}
+
+template <typename T>
+float PidControl<T>::getKd(void)
+{
+    return Kd;
+}
+
+template <typename T>
+void PidControl<T>::setpoint(T sp, bool enable)
+{
+    Setpoint = sp;
+    Enabled = enable;
+}
+
+template <typename T>
+T PidControl<T>::getSetpoint(void)
+{
+    return Setpoint;
+}
+
+template <typename T>
+void PidControl<T>::enable(bool state)
+{
+    Enabled = state;
+}
+
+template <typename T>
+bool PidControl<T>::isEnabled(void)
+{
+    return Enabled;
+}
+
+template <typename T>
+void PidControl<T>::reset()
+{
+    E_sum = E_last = Setpoint = 0;
+    Enabled = false;
+}
+
+template <typename T>
+float PidControl<T>::calc(T input)
+{
+    T e;
+    float p, i, d, u;
+
+    e = Setpoint - input;
+    E_sum += e;
+    E_sum = constrain(E_sum, -10000.0, 10000.0);
+    p = e * Kp;
+    i = E_sum * Ki;
+    d = (e - E_last) * Kd;
+    E_last = e;
+    u = p + i + d;
+
+    //Serial.print(p);
+    //Serial.print(" ");
+    //Serial.print(i);
+    //Serial.print(" ");
+    //Serial.print(d);
+    //Serial.print("\n");
+
+    return u;
 }

@@ -35,8 +35,14 @@
 
 Cli cli;
 Task ledTask(250);
+Task StepTask(100);
 Motor motor[MOTOR_NUM];
 bool print = false;
+float kp = 1.00;
+float ki = 0.04;
+float kd = 1.00;
+typedef enum stepState_t {off, start, started, on};
+stepState_t stepstate = off;
 
 void encoder0ISR(void)
 {
@@ -73,6 +79,89 @@ CLI_COMMAND(ver)
     return 0;
 }
 
+CLI_COMMAND(info)
+{
+    Serial.print("kp:");
+    Serial.print(kp);
+    Serial.print(" ki:");
+    Serial.print(ki);
+    Serial.print(" kd:");
+    Serial.print(kd);
+    Serial.print("\n");
+
+    return -0;
+}
+
+void set_pids()
+{
+    cmd_info(0, 0);
+    motor[0].initPidSpeed(kp, ki, kd);
+}
+
+CLI_COMMAND(kp)
+{
+    if(argc == 1)
+    {
+        kp = atoff(argv[0]);
+        set_pids();
+        
+        return 0;
+    }
+
+    return -1;
+}
+
+CLI_COMMAND(ki)
+{
+    if(argc == 1)
+    {
+        ki = atoff(argv[0]);
+        set_pids();
+        
+        return 0;
+    }
+
+    return -1;
+}
+
+CLI_COMMAND(kd)
+{
+    if(argc == 1)
+    {
+        kd = atoff(argv[0]);
+        set_pids();
+        
+        return 0;
+    }
+
+    return -1;
+}
+
+CLI_COMMAND(step)
+{
+    stepstate = start;
+    cli.suspend();
+    return 0;
+}
+
+CLI_COMMAND(speed)
+{
+    if(argc == 1)
+    {
+        float sp = atoff(argv[0]);
+        
+        Serial.print("Setpoint:");
+        Serial.print(sp);
+        Serial.print("\n");
+    
+        motor[0].speed(sp);
+
+        return 0;
+    }
+
+    return -1;
+}
+
 CLI_COMMAND(m)
 {
     if(argc == 2)
@@ -100,17 +189,7 @@ CLI_COMMAND(s)
     return 0;
 }
 
-CLI_COMMAND(i)
-{
-    int32_t pos[MOTOR_NUM];
 
-    for (uint32_t i = 0; i < MOTOR_NUM; i++)
-        pos[i] = motor[i].getPosition();
-
-    Serial.printf("%4ld %4ld %4ld %4ld\n", pos[0], pos[1], pos[2], pos[3]);
-    
-    return 0;
-}
 
 CLI_COMMAND(p)
 {
@@ -153,6 +232,8 @@ void setup()
         motor[i].init(pinmot_a[i], pinmot_b[i], pinmot_pwm[i], pinenc_clk[i], pinenc_dir[i]);
         motor[i].initEncoder(cbenc[i]);
     }
+
+    motor[0].initPidSpeed(kp, ki, kd);
     
     pinMode(DEBUG_A, OUTPUT);
     pinMode(DEBUG_B, OUTPUT);
@@ -173,6 +254,34 @@ void loop()
     if(ledTask.isScheduled(now))
     {
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    }
+
+    if(StepTask.isScheduled(now))
+    {
+        static uint32_t ms_cnt = 0;
+
+        ms_cnt += StepTask.getTick();
+
+        if (stepstate == start)
+        {
+            cmd_info(0,0);
+            motor[0].speed(0);
+            stepstate = started;
+            print = true;
+            ms_cnt = 0;
+        }
+        else if (stepstate == started && ms_cnt >= 100)
+        {
+            motor[0].speed(200);
+            stepstate = on;
+        }
+        else if (stepstate == on && ms_cnt >= 600)
+        {
+            motor[0].stop();
+            stepstate = off;
+            print = false;
+            cli.resume();
+        }
     }
 
     motor[0].loop(print);
